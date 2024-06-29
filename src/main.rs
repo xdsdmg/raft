@@ -3,7 +3,14 @@ mod rpc;
 
 use core::panic;
 use model::configuration::Configuration;
-use std::env;
+use signal_hook::{consts::SIGINT, iterator::Signals};
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    mpsc::{self, Receiver, Sender},
+    Arc,
+};
+use std::thread::JoinHandle;
+use std::{env, thread};
 
 fn has_prefix(s: &str, prefix: &str) -> bool {
     if prefix.len() > s.len() {
@@ -40,6 +47,40 @@ fn parse_cmd_line_arg(args: Vec<String>) -> Result<Configuration, String> {
     Ok(cfg)
 }
 
+fn init_signal_handler(rpc_done_tx: Sender<()>) {
+    let mut signals = Signals::new(&[SIGINT]).unwrap();
+    let running = Arc::new(AtomicBool::new(true));
+    let r = running.clone();
+
+    thread::spawn(move || {
+        for sig in signals.forever() {
+            match sig {
+                SIGINT => {
+                    println!("Received SIGINT, shutting down gracefully...");
+                    r.store(false, Ordering::SeqCst);
+                    let _ = rpc_done_tx.send(()); // Terminate RPC service
+                    break;
+                }
+                _ => unreachable!(),
+            }
+        }
+    });
+}
+
+fn init_rpc_serivce(rpc_done_rx: Receiver<()>) -> JoinHandle<()> {
+    thread::spawn(move || {
+        let rpc_srv = rpc::RPC::new("127.0.0.1:3456", rpc_done_rx);
+        rpc_srv.spin();
+    })
+}
+
+fn init() {
+    let (tx, rx) = mpsc::channel::<()>();
+    init_signal_handler(tx);
+    let rpc_handle = init_rpc_serivce(rx);
+    rpc_handle.join().unwrap();
+}
+
 fn main() {
     let args: Vec<String> = env::args().collect();
 
@@ -49,4 +90,6 @@ fn main() {
     };
 
     println!("cfg: {}", cfg);
+
+    init();
 }
