@@ -4,13 +4,15 @@ mod rpc;
 use core::panic;
 use model::configuration::Configuration;
 use signal_hook::{consts::SIGINT, iterator::Signals};
-use std::sync::{
-    atomic::{AtomicBool, Ordering},
-    mpsc::{self, Receiver, Sender},
-    Arc,
-};
 use std::thread::JoinHandle;
 use std::{env, thread};
+use std::{
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
+    time::Duration,
+};
 
 fn has_prefix(s: &str, prefix: &str) -> bool {
     if prefix.len() > s.len() {
@@ -47,7 +49,7 @@ fn parse_cmd_line_arg(args: Vec<String>) -> Result<Configuration, String> {
     Ok(cfg)
 }
 
-fn init_signal_handler(rpc_done_tx: Sender<()>) {
+fn init_signal_handler(terminate_signal: Arc<AtomicBool>) {
     let mut signals = Signals::new(&[SIGINT]).unwrap();
     let running = Arc::new(AtomicBool::new(true));
     let r = running.clone();
@@ -58,7 +60,7 @@ fn init_signal_handler(rpc_done_tx: Sender<()>) {
                 SIGINT => {
                     println!("Received SIGINT, shutting down gracefully...");
                     r.store(false, Ordering::SeqCst);
-                    let _ = rpc_done_tx.send(()); // Terminate RPC service
+                    terminate_signal.store(true, Ordering::SeqCst); // Terminate RPC service
                     break;
                 }
                 _ => unreachable!(),
@@ -67,18 +69,43 @@ fn init_signal_handler(rpc_done_tx: Sender<()>) {
     });
 }
 
-fn init_rpc_serivce(rpc_done_rx: Receiver<()>) -> JoinHandle<()> {
+fn init_rpc_service(terminate_signal: Arc<AtomicBool>) -> JoinHandle<()> {
     thread::spawn(move || {
-        let rpc_srv = rpc::RPC::new("127.0.0.1:3456", rpc_done_rx);
+        let rpc_srv = rpc::RPC::new("127.0.0.1:3456", terminate_signal);
         rpc_srv.spin();
     })
 }
 
+fn init_crontab_service(terminate_signal: Arc<AtomicBool>) -> JoinHandle<()> {
+    thread::spawn(move || {
+        loop {
+            if terminate_signal.load(Ordering::SeqCst) {
+                println!("info: start terminating crontab service");
+                break;
+            }
+            println!("crontab service is triggered");
+            thread::sleep(Duration::from_millis(5000));
+        }
+
+        println!("info: crontab service has been terminated");
+    })
+}
+
 fn init() {
-    let (tx, rx) = mpsc::channel::<()>();
-    init_signal_handler(tx);
-    let rpc_handle = init_rpc_serivce(rx);
-    rpc_handle.join().unwrap();
+    let terminate_signal = Arc::new(AtomicBool::new(false));
+
+    init_signal_handler(terminate_signal.clone());
+
+    let rpc_handle = init_rpc_service(terminate_signal.clone());
+    let crontab_handle = init_crontab_service(terminate_signal.clone());
+
+    if let Err(e) = rpc_handle.join() {
+        println!("error: RPC thread join failed, {:?}", e);
+    }
+
+    if let Err(e) = crontab_handle.join() {
+        println!("error: crontab thread join failed, {:?}", e);
+    }
 }
 
 fn main() {

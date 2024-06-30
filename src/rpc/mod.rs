@@ -3,19 +3,22 @@ mod tests;
 use std::{
     io::{ErrorKind, Read},
     net::{TcpListener, TcpStream},
-    sync::mpsc::{Receiver, TryRecvError},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
 };
 
 pub struct RPC {
     host: String,
-    rx: Receiver<()>,
+    terminate_signal: Arc<AtomicBool>,
 }
 
 impl RPC {
-    pub fn new(host: &str, rx: Receiver<()>) -> Self {
+    pub fn new(host: &str, terminate_signal: Arc<AtomicBool>) -> Self {
         RPC {
             host: String::from(host),
-            rx,
+            terminate_signal,
         }
     }
 
@@ -26,12 +29,9 @@ impl RPC {
         println!("RPC service is running at {}", self.host);
 
         for stream in listener.incoming() {
-            match self.rx.try_recv() {
-                Ok(_) | Err(TryRecvError::Disconnected) => {
-                    println!("info: start terminating RPC service");
-                    break;
-                }
-                Err(TryRecvError::Empty) => {}
+            if self.terminate_signal.load(Ordering::SeqCst) {
+                println!("info: start terminating RPC service");
+                break;
             }
 
             let stream = match stream {
