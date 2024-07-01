@@ -7,7 +7,15 @@ use std::{
         atomic::{AtomicBool, Ordering},
         Arc,
     },
+    thread::{self, JoinHandle},
 };
+
+pub fn init(terminate_signal: Arc<AtomicBool>) -> JoinHandle<()> {
+    thread::spawn(move || {
+        let rpc_srv = RPC::new("127.0.0.1:3456", terminate_signal);
+        rpc_srv.spin();
+    })
+}
 
 pub struct RPC {
     host: String,
