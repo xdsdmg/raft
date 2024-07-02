@@ -5,15 +5,17 @@ use std::{
     net::{TcpListener, TcpStream},
     sync::{
         atomic::{AtomicBool, Ordering},
+        mpsc::Sender,
         Arc,
     },
     thread::{self, JoinHandle},
 };
 
-pub fn init(terminate_signal: Arc<AtomicBool>) -> JoinHandle<()> {
+pub fn init(terminate_signal: Arc<AtomicBool>, done_sender: Sender<()>) -> JoinHandle<()> {
     thread::spawn(move || {
         let rpc_srv = RPC::new("127.0.0.1:3456", terminate_signal);
         rpc_srv.spin();
+        let _ = done_sender.send(());
     })
 }
 
