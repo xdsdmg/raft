@@ -4,7 +4,6 @@ mod model;
 mod rpc;
 mod signal;
 
-use core::panic;
 use std::{
     env,
     sync::{
@@ -14,6 +13,8 @@ use std::{
     },
 };
 
+use crate::model::configuration::{self, Configuration};
+
 fn wait(wait_count: Arc<AtomicU32>, rx: Receiver<()>) {
     for _ in rx {
         wait_count.fetch_sub(1, Ordering::SeqCst);
@@ -21,9 +22,11 @@ fn wait(wait_count: Arc<AtomicU32>, rx: Receiver<()>) {
             break;
         }
     }
+
+    println!("info: all background threads have been terminated");
 }
 
-fn start() {
+fn start(cfg: &Configuration) {
     let terminate_signal = Arc::new(AtomicBool::new(false));
     let wait_count = Arc::new(AtomicU32::new(0));
 
@@ -32,29 +35,24 @@ fn start() {
     let (tx, rx) = mpsc::channel::<()>();
 
     wait_count.fetch_add(1, Ordering::SeqCst);
-    let _ = rpc::init(terminate_signal.clone(), tx.clone());
+    let listen_address = cfg
+        .listen_address
+        .as_ref()
+        .expect("error: listen address of RPC is empty");
+    let _ = rpc::init(terminate_signal.clone(), tx.clone(), listen_address);
+
     wait_count.fetch_add(1, Ordering::SeqCst);
     let _ = crontab::init(terminate_signal.clone(), tx.clone());
 
     wait(wait_count, rx);
-
-    // if let Err(e) = rpc_handle.join() {
-    //     println!("error: RPC thread join failed, {:?}", e);
-    // }
-    // if let Err(e) = crontab_handle.join() {
-    //     println!("error: crontab thread join failed, {:?}", e);
-    // }
 }
 
 fn main() {
     let args: Vec<String> = env::args().collect();
 
-    let cfg = match cmd_line::parse_cmd_line_arg(args) {
-        Ok(cfg) => cfg,
-        Err(msg) => panic!("{}", msg),
-    };
+    let cfg = configuration::get_configuration(args);
 
     println!("cfg: {}", cfg);
 
-    start();
+    start(&cfg);
 }

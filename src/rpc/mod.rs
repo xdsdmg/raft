@@ -11,9 +11,15 @@ use std::{
     thread::{self, JoinHandle},
 };
 
-pub fn init(terminate_signal: Arc<AtomicBool>, done_sender: Sender<()>) -> JoinHandle<()> {
+pub fn init(
+    terminate_signal: Arc<AtomicBool>,
+    done_sender: Sender<()>,
+    host: &str,
+) -> JoinHandle<()> {
+    let host = String::from(host);
+
     thread::spawn(move || {
-        let rpc_srv = RPC::new("127.0.0.1:3456", terminate_signal);
+        let rpc_srv = RPC::new(&host, terminate_signal);
         rpc_srv.spin();
         let _ = done_sender.send(());
     })

@@ -1,4 +1,4 @@
-CONF_PATH = aa
+CONF_PATH = conf/conf.json
 
 dev:
 	RUST_BACKTRACE=1 cargo run -- --conf_path $(CONF_PATH)
