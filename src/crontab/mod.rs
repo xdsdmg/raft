@@ -4,23 +4,36 @@ use std::{
         mpsc::Sender,
         Arc,
     },
-    thread::{self, JoinHandle},
+    thread,
     time::Duration,
 };
 
-pub fn init(terminate_signal: Arc<AtomicBool>, done_sender: Sender<()>) -> JoinHandle<()> {
-    thread::spawn(move || {
+pub struct Clock {
+    terminate_signal: Arc<AtomicBool>,
+    done_sender: Sender<()>,
+}
+
+impl Clock {
+    pub fn new(terminate_signal: Arc<AtomicBool>, done_sender: Sender<()>) -> Self {
+        Clock {
+            terminate_signal,
+            done_sender,
+        }
+    }
+
+    pub fn spin(&self) {
         loop {
-            if terminate_signal.load(Ordering::SeqCst) {
+            if self.terminate_signal.load(Ordering::SeqCst) {
                 println!("info: start terminating crontab service");
                 break;
             }
             println!("crontab service is triggered");
             thread::sleep(Duration::from_millis(5000));
         }
-
         println!("info: crontab service has been terminated");
+    }
 
-        let _ = done_sender.send(());
-    })
+    pub fn done(&self) {
+        let _ = self.done_sender.send(());
+    }
 }

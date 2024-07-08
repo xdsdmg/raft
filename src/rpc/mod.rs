@@ -8,33 +8,20 @@ use std::{
         mpsc::Sender,
         Arc,
     },
-    thread::{self, JoinHandle},
 };
-
-pub fn init(
-    terminate_signal: Arc<AtomicBool>,
-    done_sender: Sender<()>,
-    host: &str,
-) -> JoinHandle<()> {
-    let host = String::from(host);
-
-    thread::spawn(move || {
-        let rpc_srv = RPC::new(&host, terminate_signal);
-        rpc_srv.spin();
-        let _ = done_sender.send(());
-    })
-}
 
 pub struct RPC {
     host: String,
     terminate_signal: Arc<AtomicBool>,
+    done_sender: Sender<()>,
 }
 
 impl RPC {
-    pub fn new(host: &str, terminate_signal: Arc<AtomicBool>) -> Self {
+    pub fn new(host: &str, terminate_signal: Arc<AtomicBool>, done_sender: Sender<()>) -> Self {
         RPC {
             host: String::from(host),
             terminate_signal,
+            done_sender,
         }
     }
 
@@ -63,6 +50,10 @@ impl RPC {
         }
 
         println!("info: RPC service has been terminated");
+    }
+
+    pub fn done(&self) {
+        let _ = self.done_sender.send(());
     }
 
     fn parse_connection(&self, mut stream: TcpStream) {
