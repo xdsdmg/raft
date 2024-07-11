@@ -14,9 +14,8 @@ use std::{
     },
 };
 
+use model::configuration::{self, Configuration};
 use server::Server;
-
-use crate::model::configuration::{self, Configuration};
 
 fn wait(wait_count: Arc<AtomicU32>, rx: Receiver<()>) {
     for _ in rx {

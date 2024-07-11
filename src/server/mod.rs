@@ -13,6 +13,7 @@ pub enum Role {
 
 pub struct Server {
     role: Role,
+    term: usize,
     rpc_service: Arc<RPC>,
     clock_service: Arc<Clock>,
 }
@@ -33,6 +34,7 @@ impl Server {
 
         Server {
             role: Role::Follower,
+            term: 0,
             rpc_service: Arc::new(rpc_service),
             clock_service: Arc::new(clock_service),
         }
