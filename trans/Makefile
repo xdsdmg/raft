@@ -15,7 +15,6 @@ clean:
 		*.out \
 		*.fls \
 		*.synctex.gz \
-		*.pdf \
 		*.bbl \
 		*.bib \
 		*.blg
