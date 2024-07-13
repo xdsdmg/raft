@@ -81,6 +81,17 @@
   year =         2002,
   pages =        {181--194},
   note =         {\url{https://www.usenix.org/legacy/event/osdi02/tech/waldspurger/waldspurger.pdf}}}
+@inbook{10.1145/3335772.3335934,
+  author = {Lamport, Leslie},
+  title = {Time, clocks, and the ordering of events in a distributed system},
+  year = {2019},
+  isbn = {9781450372701},
+  publisher = {Association for Computing Machinery},
+  address = {New York, NY, USA},
+  url = {https://doi.org/10.1145/3335772.3335934},
+  booktitle = {Concurrency: The Works of Leslie Lamport},
+  pages = {179–196},
+  numpages = {18}}
 \end{filecontents}
 
 %-------------------------------------------------------------------------------
@@ -116,9 +127,8 @@ Stanford University
 Raft是一种管理复制日志的共识算法，它提供了和(multi-)Paxos等效的结果，且它和Paxos一样有效，但结构不同于Paxos，这使得Raft更易理解，且能够为构建实际系统提供更好的基础。为了提高可理解性，Raft将共识划分为Leader选举、日志复制及安全性等核心模块，并且它加强了一致性以减少需要考虑的状态。用户研究表明，对于学生而言，Raft相交于Paxos更易理解。Raft还提供了一种用于改变集群成员的新机制，其使用重叠大多数（overlapping majorities）\footnote{这里翻译得不准确，需要调整}来保证安全性。
 \end{abstract}
 
-
 %-------------------------------------------------------------------------------
-\section{引言}
+\section{Raft共识算法}
 %-------------------------------------------------------------------------------
 
 你好呀
@@ -128,6 +138,22 @@ text text text text text text text text text text text text text text
 text text text text text text text text text text text text text text
 text text text text text text text.
 More fascinating text. Features galore, plethora of promises.
+
+\subsection{Raft 基础}
+
+Raft将时间分割为任意长度的term，详见图 \ref{fig:term}。term使用连续数字编号。每个term以选举开始，在选举中，一个或多个candidate节点尝试成为leader节点，详见章节 \ref{sec:leader-election}。如果某个candidate节点赢得了选举，那么它将在此term的剩余时间内担任leader节点。在一些情况下，选举会导致投票分裂，term将以没有leader节点的状态结束，然后一个新term（新选举）将快速开始。Raft保证在一个term中至多只有一个leader节点。
+
+不同的服务节点可能在不同的时刻观察到term的变化。term在Raft中作为逻辑时钟\cite{10.1145/3335772.3335934}，且服务节点能够根据term检测过期信息，比如过期的leader节点。每个服务节点存储当前的term编号，term编号随时间单调递增。服务节点在相互通信时交换彼此当前的term信息，如果一个服务节点的term小于其他节点的，它会将自己的term更新为较大的值。如果candidate或leader节点发现自己的term已过期，它将立即恢复至follower状态。如果服务节点收到携带过期term的请求，它将拒绝此请求。
+
+\begin{figure}
+\begin{center}
+\includegraphics[width=0.4\textwidth]{imgs/fig_5.jpg}
+\end{center}
+\caption{\label{fig:term} 时间被分割为term，并且每个term以选举开始。选举成功后，一个leader节点将管理集群直至term结束，选举也可能失败，在此情况下，term将以没有选举出leader节点结束。不同的节点可能在不同的时刻观察到term的变化。}
+\end{figure}
+
+\subsection{Leader选举}
+\label{sec:leader-election}
 
 %-------------------------------------------------------------------------------
 \section{Footnotes, Verbatim, and Citations}
