@@ -54,6 +54,15 @@
 
 % to be able to draw some self-contained figs
 \usepackage{tikz}
+\usetikzlibrary{quotes}
+\usetikzlibrary{calc}
+\usetikzlibrary{shapes}
+\usetikzlibrary{positioning}
+\tikzset{shape example/.style = {
+    color=black!50, draw, fill=blue!10,
+    inner xsep=1.5cm, inner ysep=0.5cm,
+}}
+\newcommand{\minus}{\raisebox{0.96pt}{-}}
 \usepackage{amsmath}
 
 % inlined bib file
@@ -108,23 +117,19 @@
 
 %for single author (just remove % characters)
 \author{
-{\rm Diego Ongaro and John Ousterhout}\\
-Stanford University
-% \and
-% {\rm Second Name}\\
-% Second Institution
-% copy the following lines to add more authors
-% \and
-% {\rm Name}\\
-%Name Institution
+  {\rm Diego Ongaro and John Ousterhout}\\
+  Stanford University
+  \and
+  {\rm Translated into Simplified Chinese from raft.github.io/raft.pdf}\\
+  {\rm by xdsdmg@163.com}
 } % end author
 
 \maketitle
 
 %-------------------------------------------------------------------------------
 \begin{abstract}
-%-------------------------------------------------------------------------------
-Raft是一种管理复制日志的共识算法，它提供了和(multi-)Paxos等效的结果，且它和Paxos一样有效，但结构不同于Paxos，这使得Raft更易理解，且能够为构建实际系统提供更好的基础。为了提高可理解性，Raft将共识划分为Leader选举、日志复制及安全性等核心模块，并且它加强了一致性以减少需要考虑的状态。用户研究表明，对于学生而言，Raft相交于Paxos更易理解。Raft还提供了一种用于改变集群成员的新机制，其使用重叠大多数（overlapping majorities）\footnote{这里翻译得不准确，需要调整}来保证安全性。
+  %-------------------------------------------------------------------------------
+  Raft是一种管理复制日志的共识算法，它提供了和(multi-)Paxos等效的结果，且它和Paxos一样有效，但结构不同于Paxos，这使得Raft更易理解，且能够为构建实际系统提供更好的基础。为了提高可理解性，Raft将共识划分为Leader选举、日志复制及安全性等核心模块，并且它加强了一致性以减少需要考虑的状态。用户研究表明，对于学生而言，Raft相交于Paxos更易理解。Raft还提供了一种用于改变集群成员的新机制，其使用重叠大多数（overlapping majorities）\footnote{这里翻译得不准确，需要调整}来保证安全性。
 \end{abstract}
 
 %-------------------------------------------------------------------------------
@@ -140,16 +145,82 @@ text text text text text text text.
 More fascinating text. Features galore, plethora of promises.
 
 \subsection{Raft 基础}
+一个Raft集群含有若干个服务节点，通常为$5$个，系统能够容忍最多两个节点发生故障。在任何给定的时间，服务节点的状态为leader、follower及candidate的其中一个。正常运作时，只有一个leader节点，其他节点皆处于follower状态。
 
 Raft将时间分割为任意长度的term，详见图 \ref{fig:term}。term使用连续数字编号。每个term以选举开始，在选举中，一个或多个candidate节点尝试成为leader节点，详见章节 \ref{sec:leader-election}。如果某个candidate节点赢得了选举，那么它将在此term的剩余时间内担任leader节点。在一些情况下，选举会导致投票分裂，term将以没有leader节点的状态结束，然后一个新term（新选举）将快速开始。Raft保证在一个term中至多只有一个leader节点。
 
 不同的服务节点可能在不同的时刻观察到term的变化。term在Raft中作为逻辑时钟\cite{10.1145/3335772.3335934}，且服务节点能够根据term检测过期信息，比如过期的leader节点。每个服务节点存储当前的term编号，term编号随时间单调递增。服务节点在相互通信时交换彼此当前的term信息，如果一个服务节点的term小于其他节点的，它会将自己的term更新为较大的值。如果candidate或leader节点发现自己的term已过期，它将立即恢复至follower状态。如果服务节点收到携带过期term的请求，它将拒绝此请求。
 
 \begin{figure}
-\begin{center}
-\includegraphics[width=0.4\textwidth]{imgs/fig_5.jpg}
-\end{center}
-\caption{\label{fig:term} 时间被分割为term，并且每个term以选举开始。选举成功后，一个leader节点将管理集群直至term结束，选举也可能失败，在此情况下，term将以没有选举出leader节点结束。不同的节点可能在不同的时刻观察到term的变化。}
+  \begin{center}
+    \resizebox{\linewidth}{!}{
+      \begin{tikzpicture}[
+          state/.style = {ellipse, draw, minimum width=2cm, minimum height=1cm, align=center, fill=green!20, line width=1pt},
+          arrow/.style = {thick,->,>=stealth},
+          font = \sffamily
+        ]
+
+        % Nodes
+        \node[state] (follower) {Follower};
+        \node[state, right=of follower, xshift=2cm] (candidate) {Candidate};
+        \node[state, right=of candidate, xshift=2cm] (leader) {Leader};
+
+        % Paths between nodes
+        \draw[arrow] (follower) -- node[above, align=center] {时间结束，\\开始选举} (candidate);
+        \draw[arrow] (candidate) -- node[above, align=center] {收到大多数\\服务节点的投票} (leader);
+        \draw[arrow] (candidate) to[bend left] node[below, align=center] {发现当前leader节点\\或更新的term} (follower);
+        \draw[arrow] (candidate) edge[loop above] node[align=center] {时间结束，\\新一轮选举} (candidate);
+        \draw[arrow] (leader) to[bend right=40] node[above, align=center] {发现具有更高\\term编号的服务节点} (follower);
+
+        % Startup arrow
+        \draw[arrow] ($(follower.west)+(-1,1)$) to[bend right=30] (follower.west);
+        \node[above, align=center] at ($(follower.west)+(-1,1)$) {开始};
+
+      \end{tikzpicture}
+    }
+  \end{center}
+  \caption{\label{fig:state_tran} 服务节点状态。follower只应答来自其他服务节点的请求。如果一个follower未收到任何通信，它将成为candidate并开始选举。收到来自整个集群大多数服务节点投票的candidate将成为新的leader节点。leader节点通常会一直运作至失败为止。}
+\end{figure}
+
+\begin{figure}
+  \begin{center}
+    \resizebox{\linewidth}{!}{
+      \begin{tikzpicture}[node distance=0.5cm, every node/.style={inner sep=0,outer sep=0}][\sffamily]
+        % Colors
+        \definecolor{blue}{RGB}{0,112,192}
+        \definecolor{green}{RGB}{146,208,80}
+        \definecolor{myred}{RGB}{255,0,0}
+
+        \fill[blue] (0,0.2) rectangle (0.5,1.2);
+        \fill[green] (0.5,0.2) rectangle (1.5,1.2);
+        \node[above, font=\itshape] at (0.75, 1.4) {term 1};
+
+        \fill[blue] (1.7,0.2) rectangle (2.1,1.2);
+        \fill[green] (2.1,0.2) rectangle (3.9,1.2);
+        \node[above, font=\itshape] at (2.8, 1.4) {term 2};
+
+        \fill[blue] (4.1,0.2) rectangle (4.6,1.2);
+        \node[above, font=\itshape] at (4.35, 1.4) {t3};
+
+        \fill[blue] (4.8,0.2) rectangle (5.3,1.2);
+        \fill[green] (5.3,0.2) rectangle (7,1.2);
+        \node[above, font=\itshape] at (5.9, 1.4) {term 4};
+
+        \node[text width=2cm, align=center, anchor=north, font=\small] (elec_1) at (0.25, -0.6) {选举};
+        \draw[thick, <-] (0.25,0.2) -- (elec_1.north);
+
+        \node[text width=2cm, align=center, anchor=north, font=\small] (nor_op) at (1.5, -0.6) {正常运行};
+        \draw[thick, <-] (1,0.2) -- (nor_op.north);
+
+        \node[align=center, anchor=north, font=\small] (no_em_leader) at (4.35, -0.6) {没有出现\\新的leader节点};
+        \draw[thick, <-] (4.35,0.2) -- (no_em_leader.north);
+
+        % Time arrow
+        \draw[thick, ->] (-0.5,0) -- (7.5,0) node[right] {terms};
+      \end{tikzpicture}
+    }
+  \end{center}
+  \caption{\label{fig:term} 时间被分割为term，并且每个term以选举开始。选举成功后，一个leader节点将管理集群直至term结束，选举也可能失败，在此情况下，term将以没有选举出leader节点结束。不同的节点可能在不同的时刻观察到term的变化。}
 \end{figure}
 
 \subsection{Leader选举}
@@ -186,7 +257,7 @@ And the 'cite' package sorts your citations by their numerical order
 of the corresponding references at the end of the paper, ridding you
 from the need to notice that, e.g, ``Waldspurger'' appears after
 ``Arpachi-Dusseau'' when sorting references
-alphabetically~\cite{waldspurger02,arpachiDusseau18:osbook}. 
+alphabetically~\cite{waldspurger02,arpachiDusseau18:osbook}.
 
 It'd be nice and thoughtful of you to include a suitable link in each
 and every bibtex entry that you use in your submission, to allow
@@ -205,24 +276,28 @@ clickable in the PDF because of the packages we've included.
 
 %---------------------------
 \begin{figure}
-\begin{center}
-\begin{tikzpicture}
-  \draw[thin,gray!40] (-2,-2) grid (2,2);
-  \draw[<->] (-2,0)--(2,0) node[right]{$x$};
-  \draw[<->] (0,-2)--(0,2) node[above]{$y$};
-  \draw[line width=2pt,blue,-stealth](0,0)--(1,1)
-        node[anchor=south west]{$\boldsymbol{u}$};
-  \draw[line width=2pt,red,-stealth](0,0)--(-1,-1)
-        node[anchor=north east]{$\boldsymbol{-u}$};
-\end{tikzpicture}
-\end{center}
-\caption{\label{fig:vectors} Text size inside figure should be as big as
-  caption's text. Text size inside figure should be as big as
-  caption's text. Text size inside figure should be as big as
-  caption's text. Text size inside figure should be as big as
-  caption's text. Text size inside figure should be as big as
-  caption's text. }
+  \begin{center}
+    \begin{tikzpicture}
+      \draw[thin,gray!40] (-2,-2) grid (2,2);
+      \draw[<->] (-2,0)--(2,0) node[right]{$x$};
+      \draw[<->] (0,-2)--(0,2) node[above]{$y$};
+      \draw[line width=2pt,blue,-stealth](0,0)--(1,1)
+      node[anchor=south west]{$\boldsymbol{u}$};
+      \draw[line width=2pt,red,-stealth](0,0)--(-1,-1)
+      node[anchor=north east]{$\boldsymbol{-u}$};
+    \end{tikzpicture}
+  \end{center}
+  \caption{\label{fig:vectors} Text size inside figure should be as big as
+    caption's text. Text size inside figure should be as big as
+    caption's text. Text size inside figure should be as big as
+    caption's text. Text size inside figure should be as big as
+    caption's text. Text size inside figure should be as big as
+    caption's text. }
 \end{figure}
+
+
+
+
 %% %---------------------------
 
 
@@ -242,14 +317,14 @@ Lists are sometimes quite handy. If you want to itemize things, feel
 free:
 
 \begin{description}
-  
-\item[fread] a function that reads from a \texttt{stream} into the
-  array \texttt{ptr} at most \texttt{nobj} objects of size
-  \texttt{size}, returning returns the number of objects read.
 
-\item[Fred] a person's name, e.g., there once was a dude named Fred
-  who separated usenix.sty from this file to allow for easy
-  inclusion.
+  \item[fread] a function that reads from a \texttt{stream} into the
+        array \texttt{ptr} at most \texttt{nobj} objects of size
+        \texttt{size}, returning returns the number of objects read.
+
+  \item[Fred] a person's name, e.g., there once was a dude named Fred
+        who separated usenix.sty from this file to allow for easy
+        inclusion.
 \end{description}
 
 \noindent
