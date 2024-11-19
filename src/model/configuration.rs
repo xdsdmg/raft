@@ -8,6 +8,7 @@ pub struct Configuration {
     pub server_id: Option<usize>,
     pub listen_address: Option<String>,
     pub nodes: Option<Vec<String>>,
+    pub election_timeout: usize,
 }
 
 impl Default for Configuration {
@@ -17,6 +18,7 @@ impl Default for Configuration {
             server_id: None,
             listen_address: None,
             nodes: None,
+            election_timeout: 150, // Unit in milliseconds
         }
     }
 }

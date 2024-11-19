@@ -1,5 +1,6 @@
 mod cmd_line;
 mod crontab;
+mod error;
 mod model;
 mod rpc;
 mod server;
@@ -30,14 +31,11 @@ fn wait(wait_count: Arc<AtomicU32>, rx: Receiver<()>) {
 
 fn start(cfg: &Configuration) {
     let terminate_signal = Arc::new(AtomicBool::new(false));
-
     signal::init(terminate_signal.clone());
 
     let (tx, rx) = mpsc::channel::<()>();
-
-    let server = Server::new(cfg, terminate_signal.clone(), tx.clone());
-
     let wait_count = Arc::new(AtomicU32::new(0));
+    let server = Server::new(cfg, terminate_signal.clone(), tx.clone());
 
     wait_count.fetch_add(1, Ordering::SeqCst);
     server.start_rpc_service();
@@ -50,10 +48,7 @@ fn start(cfg: &Configuration) {
 
 fn main() {
     let args: Vec<String> = env::args().collect();
-
     let cfg = configuration::get_configuration(args);
-
     println!("cfg: {}", cfg);
-
     start(&cfg);
 }

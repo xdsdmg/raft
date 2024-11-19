@@ -1,7 +1,8 @@
 mod tests;
+use crate::error::Error;
 
 use std::{
-    io::{ErrorKind, Read},
+    io::{ErrorKind, Read, Write},
     net::{TcpListener, TcpStream},
     sync::{
         atomic::{AtomicBool, Ordering},
@@ -54,6 +55,22 @@ impl RPC {
 
     pub fn done(&self) {
         let _ = self.done_sender.send(());
+    }
+
+    pub fn join_cluster(&self, msg: &str, addr: &str) -> Result<(), Error> {
+        let mut stream = match TcpStream::connect(addr) {
+            Ok(stream) => stream,
+            Err(e) => {
+                println!("tcp connection failed, error: {}", e);
+                return Err(Error::TcpConnectionFailed);
+            }
+        };
+
+        if let Err(_) = stream.write(msg.as_bytes()) {
+            return Err(Error::TcpConnectionFailed);
+        }
+
+        Ok(())
     }
 
     fn parse_connection(&self, mut stream: TcpStream) {
