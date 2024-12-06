@@ -6,31 +6,13 @@ mod rpc;
 mod server;
 mod signal;
 
-use std::{
-    env,
-    sync::{
-        atomic::{AtomicBool, AtomicU32, Ordering},
-        mpsc::{self, Receiver},
-        Arc,
-    },
-};
+use std::env;
 
 use model::configuration::{self, Configuration};
 use server::Server;
 
-fn wait(wait_count: Arc<AtomicU32>, rx: Receiver<()>) {
-    for _ in rx {
-        wait_count.fetch_sub(1, Ordering::SeqCst);
-        if wait_count.load(Ordering::SeqCst) == 0 {
-            break;
-        }
-    }
-
-    println!("info: all background threads have been terminated");
-}
-
 fn start(cfg: &Configuration) {
-    let server = Server::new(cfg, terminate_signal.clone(), tx.clone());
+    let server = Server::new(cfg);
     server.run();
 }
 
