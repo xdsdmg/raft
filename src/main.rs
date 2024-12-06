@@ -30,20 +30,8 @@ fn wait(wait_count: Arc<AtomicU32>, rx: Receiver<()>) {
 }
 
 fn start(cfg: &Configuration) {
-    let terminate_signal = Arc::new(AtomicBool::new(false));
-    signal::init(terminate_signal.clone());
-
-    let (tx, rx) = mpsc::channel::<()>();
-    let wait_count = Arc::new(AtomicU32::new(0));
     let server = Server::new(cfg, terminate_signal.clone(), tx.clone());
-
-    wait_count.fetch_add(1, Ordering::SeqCst);
-    server.start_rpc_service();
-
-    wait_count.fetch_add(1, Ordering::SeqCst);
-    server.start_clock_service();
-
-    wait(wait_count, rx);
+    server.run();
 }
 
 fn main() {

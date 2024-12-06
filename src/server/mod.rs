@@ -1,9 +1,12 @@
+use crate::{crontab::Clock, model::configuration::Configuration, rpc::RPC, signal};
 use std::{
-    sync::{atomic::AtomicBool, mpsc::Sender, Arc},
+    sync::{
+        atomic::{AtomicBool, AtomicU32, Ordering},
+        mpsc::{self, Receiver, Sender},
+        Arc,
+    },
     thread,
 };
-
-use crate::{crontab::Clock, model::configuration::Configuration, rpc::RPC};
 
 pub enum Role {
     Follower,
@@ -38,6 +41,33 @@ impl Server {
             rpc_service: Arc::new(rpc_service),
             clock_service: Arc::new(clock_service),
         }
+    }
+
+    fn wait(&self, wait_count: Arc<AtomicU32>, rx: Receiver<()>) {
+        for _ in rx {
+            wait_count.fetch_sub(1, Ordering::SeqCst);
+            if wait_count.load(Ordering::SeqCst) == 0 {
+                break;
+            }
+        }
+
+        println!("info: all background threads have been terminated");
+    }
+
+    pub fn run(&self) {
+        let terminate_signal = Arc::new(AtomicBool::new(false));
+        signal::init(terminate_signal.clone());
+
+        let (tx, rx) = mpsc::channel::<()>();
+        let wait_count = Arc::new(AtomicU32::new(0));
+
+        wait_count.fetch_add(1, Ordering::SeqCst);
+        self.start_rpc_service();
+
+        wait_count.fetch_add(1, Ordering::SeqCst);
+        self.start_clock_service();
+
+        self.wait(wait_count, rx);
     }
 
     pub fn start_rpc_service(&self) {
