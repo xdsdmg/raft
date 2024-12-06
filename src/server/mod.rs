@@ -19,6 +19,9 @@ pub struct Server {
     term: usize,
     rpc_service: Arc<RPC>,
     clock_service: Arc<Clock>,
+    nodes: Vec<String>,
+
+    /* Used for thread control */
     terminate_signal: Arc<AtomicBool>,
     done_sender: Sender<()>,
     done_receiver: Receiver<()>,
@@ -42,6 +45,7 @@ impl Server {
             term: 0,
             rpc_service: Arc::new(rpc_service),
             clock_service: Arc::new(clock_service),
+            nodes: cfg.nodes.clone(),
 
             terminate_signal,
             done_sender,
@@ -59,6 +63,12 @@ impl Server {
 
         wait_count.fetch_add(1, Ordering::SeqCst);
         self.start_clock_service();
+
+        /* Find the master node and join the cluster */
+        for host in &self.nodes {
+            println!("host: {}", host);
+            self.rpc_service.join_cluster("hello world!", &host);
+        }
 
         self.wait(wait_count);
     }

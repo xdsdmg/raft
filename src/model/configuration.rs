@@ -7,7 +7,7 @@ pub struct Configuration {
     pub conf_path: Option<String>,
     pub server_id: Option<usize>,
     pub listen_address: Option<String>,
-    pub nodes: Option<Vec<String>>,
+    pub nodes: Vec<String>,
     pub election_timeout: usize,
 }
 
@@ -17,7 +17,7 @@ impl Default for Configuration {
             conf_path: None,
             server_id: None,
             listen_address: None,
-            nodes: None,
+            nodes: Vec::new(),
             election_timeout: 150, // Unit in milliseconds
         }
     }
