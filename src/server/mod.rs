@@ -67,7 +67,15 @@ impl Server {
         /* Find the master node and join the cluster */
         for host in &self.nodes {
             println!("host: {}", host);
-            self.rpc_service.join_cluster("hello world!", &host);
+            let _ = match self.rpc_service.join_cluster("hello world!", &host) {
+                Ok(_) => {}
+                Err(e) => {
+                    println!(
+                        "[ERROR] join cluster through node({}) failed, error: {}",
+                        host, e
+                    )
+                }
+            };
         }
 
         self.wait(wait_count);

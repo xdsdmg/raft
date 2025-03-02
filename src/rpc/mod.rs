@@ -56,6 +56,9 @@ impl RPC {
     pub fn done(&self) {
         let _ = self.done_sender.send(());
     }
+    
+    // Join the cluster:
+    // For finding the leader, The currnet node will attempt to estiblish a TCP connection to each nodes specified in configuration file.
 
     pub fn join_cluster(&self, msg: &str, addr: &str) -> Result<(), Error> {
         let mut stream = match TcpStream::connect(addr) {
